@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import textwrap
 from copy import deepcopy
 
 from manim import *
@@ -43,9 +44,12 @@ class VisualizeDynProcs(Scene):
         self.maxproc = np.max(self.timeline.procs)
 
         self.pset_text_line = 0
-        self.pset_text_max_lines = 10
+        self.pset_text_max_lines = 14
         self.application_text_line = 0
-        self.application_text_max_lines = 5
+        self.application_text_max_lines = 7
+        # we take the default matplotlib colors for cycling
+        self.text_highlight_colors = [u'#1f77b4', u'#ff7f0e', u'#2ca02c', u'#d62728', u'#9467bd', u'#8c564b', u'#e377c2', u'#7f7f7f', u'#bcbd22', u'#17becf']
+        self.text_highlight_index = 0
 
 
         # setup axes
@@ -128,41 +132,73 @@ class VisualizeDynProcs(Scene):
             event_data = event_row["event_data"]
             match event_row["event"]:
                 case "application_message":
-                    application_messages.append(event_data["message"])
+                    line = event_data["message"]
+                    application_messages.append(line)
                 case "psetop":
                     op = event_data["op"]
                     set_id = event_data["set_id"]
                     input_sets = event_data["input_sets"]
                     output_sets = event_data["output_sets"]
-                    pset_messages.append(f"<b>{op.upper()}</b>({', '.join(input_sets)}) <b>→</b> ({', '.join(output_sets)})")
+                    line = f"<b>{op.upper()}</b>({', '.join(input_sets)}) <b>→</b> ({', '.join(output_sets)})"
+                    pset_messages.append(line)
                 case "finalize_psetop":
                     pset_messages.append(f"<b>Finalize</b>")
 
-        if pset_messages:
-            self.add_event_text("\n".join(pset_messages), base=2)
         if application_messages:
-            self.add_event_text("\n& ".join(application_messages), base=1, markup=False)
+            self.add_event_text("\n& ".join(application_messages), base=0.7, is_pset_text=False)
+        if pset_messages:
+            self.add_event_text("\n".join(pset_messages), base=2.5)
 
 
-    def add_event_text(self, text, base, markup=True):
-        text = text.strip()
-        scale = 0.2
+    def add_event_text(self, text, base, is_pset_text=True):
+        scale = 0.16
         line_height = scale
+        max_width = 90
+        max_lines = self.pset_text_max_lines if is_pset_text else self.application_text_max_lines
+        cur_line = self.pset_text_line if is_pset_text else self.application_text_line
+
+        # wrap long lines
+        text_lines = text.strip().split("\n")
+        ll = [textwrap.wrap(text=line, width=max_width) for line in text_lines]
+        text = "\n".join(["\n".join(l) for l in ll])
+
         num_lines = text.count("\n") + 1
 
-        if self.pset_text_line + num_lines > self.pset_text_max_lines:
-            self.pset_text_line = 0
+
+        if cur_line + num_lines > max_lines:
+            cur_line = 0
 
 
-        for line in text.split("\n"):
-            cls = MarkupText if markup else Text
-            t = cls(line, color=self.text_color).scale(scale)
-            t.move_to(self.axes.c2p(self.time, 0)).shift((base + self.pset_text_line * line_height) * DOWN)
-            self.pset_text_line += 1
-            self.add(t)
+        # create text
+        cls = MarkupText if is_pset_text else Text
+        t = cls(text, color=self.text_color).scale(scale)
+        # create indicator that will be next to the text
+        text_line = Line(self.axes.c2p(self.time, 0), self.axes.c2p(self.time, 0) + (t.height*DOWN),
+                         color=self.text_highlight_colors[self.text_highlight_index], stroke_width=2)
+        # vertical line from top to bottom of axes at that time point
+        vertline = Line(self.axes.c2p(self.time, 0)+0.2*DOWN, self.axes.c2p(self.time, self.maxproc+1)+0.2*UP,
+                        color=self.text_highlight_colors[self.text_highlight_index],
+                        stroke_width=1)
+        self.text_highlight_index = (self.text_highlight_index + 1) % len(self.text_highlight_colors)
 
+        text_line.move_to(self.axes.c2p(self.time, 0)).shift((base + cur_line * line_height) * DOWN)
+        text_line.shift(0.5 * text_line.width * RIGHT)
+        t.align_to(text_line, UP)
+        t.align_to(text_line, LEFT)
+        t.shift(0.05 * RIGHT)
+
+        #t.align_to(text_line, RIGHT)
+        #vg.shift(0.5 * vg.width * RIGHT)
+
+        self.add(VGroup(text_line, t), vertline)
+
+        cur_line += num_lines
         # add one line as separator
-        self.pset_text_line += 1
+        cur_line += 1
+        if is_pset_text:
+            self.pset_text_line = cur_line
+        else:
+            self.application_text_line = cur_line
 
 
 
@@ -277,7 +313,7 @@ if __name__ == '__main__':
     parser.add_argument("--log-file", "-l", type=str, default="log.csv")
     parser.add_argument("--quality", "-q", type=str, default="low_quality", choices=["low_quality", "medium_quality", "high_quality"])
     parser.add_argument("--preview", "-p", action="store_true", default=False)
-    parser.add_argument("--round-to", "-r", type=int, default=2)
+    parser.add_argument("--round-to", "-r", type=int, default=3, help="On how many 10*r miliseconds to round the time to")
     # TODO: add mode argument and ability to do moving camera
     # TODO: add option to specify start end end time of visualization
 
