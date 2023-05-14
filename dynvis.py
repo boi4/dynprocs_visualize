@@ -42,13 +42,14 @@ class VisualizeDynProcs(Scene):
         self.camera.background_color = self.bg_color
         self.maxproc = np.max(self.timeline.procs)
 
+        self.pset_text_line = 0
+        self.pset_text_max_lines = 10
+        self.application_text_line = 0
+        self.application_text_max_lines = 5
+
 
         # setup axes
         self.setup_axes()
-
-        # set up event text
-        self.setup_event_text("Start MPI job")
-
 
         # iterate over each time slice and add/remove dots based on process state
         self.proc_to_dot = {}
@@ -57,12 +58,13 @@ class VisualizeDynProcs(Scene):
 
         for i,elem  in enumerate(zip(self.timeline.ts[:-1], self.timeline.job_states[:-1])):
             t,job_state = elem
+            self.time = t
 
             # process events
             self.process_events(self.timeline.events[i], job_state)
 
             # move processes on the process line
-            self.update_process_lines(i, t, job_state, prev_job_state)
+            self.update_process_lines(i, job_state, prev_job_state)
             prev_job_state = job_state
 
 
@@ -71,30 +73,7 @@ class VisualizeDynProcs(Scene):
             self.bring_to_front(dot)
             dot.become(Cross(dot, color=PURE_RED))
 
-
         self.wait(1)
-
-
-
-    def setup_event_text(self, initial_text):
-        # setup text box below the axes
-        self.event_text = Text(initial_text, color=self.text_color)
-        self.event_text.scale(0.6)
-        self.event_text.shift(3*DOWN)
-        self.add(self.event_text)
-
-    def update_event_text(self, new_text):
-        # update event text box
-        new_event_text = Text(new_text, color=self.text_color)
-        new_event_text.move_to(self.event_text)
-        new_event_text.scale(0.6)
-        # set height to match
-        #new_event_text.match_height(self.event_text)
-        #self.play(FadeOut(self.event_text))
-        self.event_text.become(new_event_text)
-        self.wait(1)
-        #self.play(FadeIn(self.event_text))
-
 
     def setup_axes(self):
         # setup coordinate system
@@ -143,34 +122,51 @@ class VisualizeDynProcs(Scene):
     def process_events(self, orig_rows, jobstate):
         # process events that happen at that time point
 
-        # # reduce multiple psetops with same op into one "parallel psetop for nicer animations"
-        # rows = []
-        # j = 0
-        # while j < len(orig_rows):
-        #     r = orig_rows[j]
-        #     if r["event"] == "psetop":
-        #         accummulated_rows = [r]
-        #         while j+1 < len(orig_rows) and orig_rows[j+1]["event"] == "psetop" and orig_rows[j+1]["event_data"]["op"] == r["event_data"]["op"]:
-        #             accummulated_rows.append(orig_rows[j+1])
-        #             j += 1
-        #         rows.append({
-        #             "unixtimestamp": r["unixtimestamp"],
-        #             "job_id": r["job_id"],
-        #             "event": "parallel_psetop",
-        #             "event_data": [r["event_data"] for r in accummulated_rows],
-        #         })
-        #     else:
-        #         rows.append(r)
-        #     j += 1
+        application_messages = []
+        pset_messages = []
+        for event_row in orig_rows:
+            event_data = event_row["event_data"]
+            match event_row["event"]:
+                case "application_message":
+                    application_messages.append(event_data["message"])
+                case "psetop":
+                    op = event_data["op"]
+                    set_id = event_data["set_id"]
+                    input_sets = event_data["input_sets"]
+                    output_sets = event_data["output_sets"]
+                    pset_messages.append(f"<b>{op.upper()}</b>({', '.join(input_sets)}) <b>→</b> ({', '.join(output_sets)})")
+                case "finalize_psetop":
+                    pset_messages.append(f"<b>Finalize</b>")
 
-        # for event_row in rows:
-        #     match event_row["event"]:
-        #         case "application_message":
-        #             self.update_event_text(f"{event_row['event_data']['message']}")
-        pass
+        if pset_messages:
+            self.add_event_text("\n".join(pset_messages), base=2)
+        if application_messages:
+            self.add_event_text("\n& ".join(application_messages), base=1, markup=False)
 
 
-    def update_process_lines(self, iteration, time, job_state, prev_job_state):
+    def add_event_text(self, text, base, markup=True):
+        text = text.strip()
+        scale = 0.2
+        line_height = scale
+        num_lines = text.count("\n") + 1
+
+        if self.pset_text_line + num_lines > self.pset_text_max_lines:
+            self.pset_text_line = 0
+
+
+        for line in text.split("\n"):
+            cls = MarkupText if markup else Text
+            t = cls(line, color=self.text_color).scale(scale)
+            t.move_to(self.axes.c2p(self.time, 0)).shift((base + self.pset_text_line * line_height) * DOWN)
+            self.pset_text_line += 1
+            self.add(t)
+
+        # add one line as separator
+        self.pset_text_line += 1
+
+
+
+    def update_process_lines(self, iteration, job_state, prev_job_state):
         # iterate over each process's state
         for proc, proc_state in job_state.process_states.items():
             prev_proc_state = prev_job_state.process_states[proc]
@@ -183,7 +179,7 @@ class VisualizeDynProcs(Scene):
                 # print("proc", proc, "is shown and has it's type changed from ", prev_proc_state.statetype, "to", proc_state.statetype)
 
                 # get position of dot
-                proc_pos = self.axes.c2p(time, proc+1)
+                proc_pos = self.axes.c2p(self.time, proc+1)
 
 
                 if not proc in self.proc_to_dot:
