@@ -281,18 +281,28 @@ class VisualizeDynProcs(Scene):
                 self.bring_to_front(dot)
                 dot.become(Cross(dot, color=PURE_RED))
 
+
         # move each dot along its line segment
-        animations = []
+        vg = VGroup()
+
+        # we get it for proc 0 but they are all equal anyways
+        line_segment = self.line_segments[iteration][0]
+        line_segment_length = self.line_segment_lengths[iteration][0]
+
         for proc, proc_state in job_state.process_states.items():
             if proc_state.is_visualized():
-                line_segment = self.line_segments[iteration][proc]
-                line_segment_length = self.line_segment_lengths[iteration][proc]
-                animation = MoveAlongPath(self.proc_to_dot[proc], line_segment, run_time=line_segment_length/self.speed_factor, rate_func=linear)
-                animations.append(animation)
+                # line_segment = self.line_segments[iteration][proc]
+                # line_segment_length = self.line_segment_lengths[iteration][proc]
+                vg.add(self.proc_to_dot[proc])
+                #animation = MoveAlongPath(self.proc_to_dot[proc], line_segment, run_time=line_segment_length/self.speed_factor, rate_func=linear)
+                #animations.append(animation)
 
-        # play animations in parallel
-        if animations:
-            self.play(*animations)
+        animation = vg.animate.shift(np.linalg.norm(line_segment.get_end() - line_segment.get_start()) * RIGHT)
+        self.play(animation, run_time=line_segment_length/self.speed_factor, rate_func=linear)
+
+        # # play animations in parallel
+        # if animations:
+        #     self.play(*animations)
 
 
 
@@ -316,6 +326,7 @@ if __name__ == '__main__':
     parser.add_argument("--round-to", "-r", type=int, default=3, help="On how many 10*r miliseconds to round the time to")
     # TODO: add mode argument and ability to do moving camera
     # TODO: add option to specify start end end time of visualization
+    # TODO: add binary flag whether to show all legend items at beginning
 
     args = parser.parse_args()
 
