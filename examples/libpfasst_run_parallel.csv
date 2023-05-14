@@ -9,8 +9,7 @@
 1683982000130,0,process_start,"{""proc_id"": 5}"
 1683982000140,0,process_start,"{""proc_id"": 6}"
 1683982000140,0,process_start,"{""proc_id"": 7}"
-1683982000140,0,application_message,"{""message"": ""LibPFASST started""}"
-1683982000140,0,application_message,"{""message"": ""Splitting up into 4 space sets with 2 PinT processors each""}"
+1683982000140,0,application_message,"{""message"": ""Start LibPFASST""}"
 
 # split into different libpfasst runs (one for each space partition)
 1683982002000,0,new_pset,"{""proc_ids"": [0,1], ""id"": ""mpi://split_0/0""}"
@@ -19,16 +18,22 @@
 1683982002000,0,new_pset,"{""proc_ids"": [6,7], ""id"": ""mpi://split_0/3""}"
 1683982002000,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://world_0"", ""op"": ""split"", ""input_sets"": [""mpi://world_0""], ""output_sets"": [""mpi://split_0/0"", ""mpi://split_0/1"", ""mpi://split_0/2"", ""mpi://split_0/3""]}"
 
+1683982000140,0,application_message,"{""message"": ""Start work""}"
+
+
 # get a grow request
-1683982013100,0,new_pset,"{""proc_ids"": [0,1,2,3,4,5,6,7,8,9,10,11], ""id"": ""mpi://union_0""}"
+1683982013100,0,new_pset,"{""proc_ids"": [0,1,2,3,4,5,6,7,8,9,10,11], ""id"": ""mpi://grow_union_0""}"
 1683982013100,0,new_pset,"{""proc_ids"": [8,9,10,11], ""id"": ""mpi://grow_0""}"
-1683982013200,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://world_0"", ""op"": ""grow"", ""input_sets"": [], ""output_sets"": [""mpi://union_0"", ""mpi://grow_0""]}"
+1683982013200,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://world_0"", ""op"": ""grow"", ""input_sets"": [""mpi://world_0""], ""output_sets"": [""mpi://grow_union_0"", ""mpi://grow_0""]}"
+1683982013200,0,application_message,"{""message"": ""Grow by 4 processes""}"
+
 1683982014500,0,finalize_psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://world_0""}"
 1683982014500,0,set_start,"{""set_id"": ""mpi://grow_0""}"
 1683982014510,0,process_start,"{""proc_id"": 8}"
 1683982014520,0,process_start,"{""proc_id"": 9}"
 1683982014530,0,process_start,"{""proc_id"": 10}"
 1683982014540,0,process_start,"{""proc_id"": 11}"
+1683982014540,0,application_message,"{""message"": ""Start new processes""}"
 
 # split up new processes
 1683982014000,0,new_pset,"{""proc_ids"": [8], ""id"": ""mpi://split_1/0""}"
@@ -38,39 +43,52 @@
 1683982014100,0,psetop,"{""initialized_by"": 8, ""set_id"": ""mpi://grow_0"", ""op"": ""split"", ""input_sets"": [""mpi://grow_0""], ""output_sets"": [""mpi://split_1/0"", ""mpi://split_1/1"", ""mpi://split_1/2"", ""mpi://split_1/3""]}"
 
 # merge each new split with one of the existing psets
-1683982015000,0,new_pset,"{""proc_ids"": [0,1,8], ""id"": ""mpi://union_1""}"
-1683982015100,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/0"", ""mpi://split_1/0""], ""output_sets"": [""mpi://union_1""]}"
-1683982015300,0,new_pset,"{""proc_ids"": [2,3,9], ""id"": ""mpi://union_2""}"
-1683982015400,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/1"", ""mpi://split_1/1""], ""output_sets"": [""mpi://union_2""]}"
-1683982015500,0,new_pset,"{""proc_ids"": [4,5,10], ""id"": ""mpi://union_3""}"
-1683982015600,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/2"", ""mpi://split_1/2""], ""output_sets"": [""mpi://union_3""]}"
-1683982015700,0,new_pset,"{""proc_ids"": [6,7,11], ""id"": ""mpi://union_4""}"
-1683982015800,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/3"", ""mpi://split_1/3""], ""output_sets"": [""mpi://union_4""]}"
+1683982015000,0,new_pset,"{""proc_ids"": [0,1,8], ""id"": ""mpi://union_0""}"
+1683982015100,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://grow_union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/0"", ""mpi://split_1/0""], ""output_sets"": [""mpi://union_0""]}"
+1683982015300,0,new_pset,"{""proc_ids"": [2,3,9], ""id"": ""mpi://union_1""}"
+1683982015400,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://grow_union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/1"", ""mpi://split_1/1""], ""output_sets"": [""mpi://union_1""]}"
+1683982015500,0,new_pset,"{""proc_ids"": [4,5,10], ""id"": ""mpi://union_2""}"
+1683982015600,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://grow_union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/2"", ""mpi://split_1/2""], ""output_sets"": [""mpi://union_2""]}"
+1683982015700,0,new_pset,"{""proc_ids"": [6,7,11], ""id"": ""mpi://union_3""}"
+1683982015800,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://grow_union_0"", ""op"": ""union"", ""input_sets"": [""mpi://split_0/3"", ""mpi://split_1/3""], ""output_sets"": [""mpi://union_3""]}"
 
-## application is growing by 4
-#1683982013100,0,new_pset,"{""proc_ids"": [12,13,14,15], ""id"": ""mpi://grow_1""}"
-#1683982013200,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://world_1"", ""op"": ""grow"", ""input_sets"": [], ""output_sets"": [""mpi://grow_1""]}"
-#1683982014500,0,finalize_psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://world_0""}"
-#1683982014500,0,set_start,"{""set_id"": ""mpi://grow_0""}"
-#1683982014510,0,process_start,"{""proc_id"": 8}"
-#1683982014520,0,process_start,"{""proc_id"": 9}"
-#1683982014530,0,process_start,"{""proc_id"": 10}"
-#1683982014540,0,process_start,"{""proc_id"": 11}"
+1683982015800,0,application_message,"{""message"": ""Redistribute data""}"
+1683982015800,0,application_message,"{""message"": ""Continue work""}"
 
-1683982060000,0,process_shutdown,"{""proc_id"": 0}"
-1683982060000,0,process_shutdown,"{""proc_id"": 1}"
-1683982060000,0,process_shutdown,"{""proc_id"": 2}"
-1683982060000,0,process_shutdown,"{""proc_id"": 3}"
-1683982060000,0,process_shutdown,"{""proc_id"": 4}"
-1683982060000,0,process_shutdown,"{""proc_id"": 5}"
-1683982060000,0,process_shutdown,"{""proc_id"": 6}"
-1683982060000,0,process_shutdown,"{""proc_id"": 7}"
-1683982060000,0,process_shutdown,"{""proc_id"": 8}"
-1683982060000,0,process_shutdown,"{""proc_id"": 9}"
-1683982060000,0,process_shutdown,"{""proc_id"": 10}"
-1683982060000,0,process_shutdown,"{""proc_id"": 11}"
-1683982060000,0,process_shutdown,"{""proc_id"": 12}"
-1683982060000,0,process_shutdown,"{""proc_id"": 13}"
-1683982060000,0,process_shutdown,"{""proc_id"": 14}"
-1683982060000,0,process_shutdown,"{""proc_id"": 15}"
-1683982060000,0,job_end,"{""job_id"": 0}"
+
+# application wants to shrink by 4
+# diff each pset with one the splits from the grow operation
+1683982025100,0,new_pset,"{""proc_ids"": [0,1], ""id"": ""mpi://diff_0""}"
+1683982025100,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""diff"", ""input_sets"": [""mpi://union_0"", ""mpi://split_1/0""], ""output_sets"": [""mpi://diff_0""]}"
+1683982025100,0,new_pset,"{""proc_ids"": [2,3], ""id"": ""mpi://diff_1""}"
+1683982025100,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""diff"", ""input_sets"": [""mpi://union_1"", ""mpi://split_1/1""], ""output_sets"": [""mpi://diff_1""]}"
+1683982025100,0,new_pset,"{""proc_ids"": [4,5], ""id"": ""mpi://diff_2""}"
+1683982025100,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""diff"", ""input_sets"": [""mpi://union_2"", ""mpi://split_1/2""], ""output_sets"": [""mpi://diff_2""]}"
+1683982025100,0,new_pset,"{""proc_ids"": [6,7], ""id"": ""mpi://diff_3""}"
+1683982025100,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://union_0"", ""op"": ""diff"", ""input_sets"": [""mpi://union_3"", ""mpi://split_1/3""], ""output_sets"": [""mpi://diff_3""]}"
+
+# execute shrink
+1683982026100,0,new_pset,"{""proc_ids"": [0,1,2,3,4,5,6,7], ""id"": ""mpi://shrink_diff_0""}"
+1683982026100,0,new_pset,"{""proc_ids"": [8,9,10,11], ""id"": ""mpi://shrink_0""}"
+1683982026200,0,psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://grow_union_0"", ""op"": ""shrink"", ""input_sets"": [""mpi://split_1/0"", ""mpi://split_1/1"", ""mpi://split_1/2"", ""mpi://split_1/3""], ""output_sets"": [""mpi://shrink_diff_0"",""mpi://shrink_0""]}"
+1683982026200,0,application_message,"{""message"": ""Shrink by 4 processes""}"
+1683982026200,0,application_message,"{""message"": ""Redistribute data""}"
+1683982029500,0,finalize_psetop,"{""initialized_by"": 0, ""set_id"": ""mpi://grow_union_0""}"
+1683982029500,0,application_message,"{""message"": ""Continue work""}"
+
+1683982032000,0,process_shutdown,"{""proc_id"": 8}"
+1683982032000,0,process_shutdown,"{""proc_id"": 9}"
+1683982032000,0,process_shutdown,"{""proc_id"": 10}"
+1683982032000,0,process_shutdown,"{""proc_id"": 11}"
+
+
+1683982040000,0,process_shutdown,"{""proc_id"": 0}"
+1683982040000,0,process_shutdown,"{""proc_id"": 1}"
+1683982040000,0,process_shutdown,"{""proc_id"": 2}"
+1683982040000,0,process_shutdown,"{""proc_id"": 3}"
+1683982040000,0,process_shutdown,"{""proc_id"": 4}"
+1683982040000,0,process_shutdown,"{""proc_id"": 5}"
+1683982040000,0,process_shutdown,"{""proc_id"": 6}"
+1683982040000,0,process_shutdown,"{""proc_id"": 7}"
+1683982040000,0,application_message,"{""message"": ""LibPFASST run done""}"
+1683982040000,0,job_end,"{""job_id"": 0}"
