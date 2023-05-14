@@ -61,7 +61,8 @@ class Timeline:
 
 
         # order df by time
-        self.df = self.df.sort_values(by=['unixtimestamp'])
+        # need stable sorting algorithjm
+        self.df = self.df.sort_values(by=['unixtimestamp'], kind='mergesort')
 
         # round and compute relative time
         if self.rounding is not None:
@@ -74,12 +75,15 @@ class Timeline:
 
 
     def process_psetop(self, event_data, proc_states, psets):
-        match event_data["op"]:
+        op = event_data["op"]
+        set_id = event_data["set_id"]
+        input_sets = event_data["input_sets"]
+        output_sets = event_data["output_sets"]
+        initialized_by = event_data["initialized_by"]
+
+        match op:
+            # we do not need to handle these
             case "null":
-                pass
-            case "add":
-                pass
-            case "sub":
                 pass
             case "split":
                 pass
@@ -89,12 +93,41 @@ class Timeline:
                 pass
             case "intersection":
                 pass
+
+            # here we need to update process states
             case "grow":
-                pass
+                union_set = output_sets[0]
+                delta_set = output_sets[1]
+                for proc in psets[delta_set].proc_ids:
+                    proc_states[proc].statetype = ProcessStateType.START_ANNOUNCED
             case "shrink":
-                pass
+                diff_set = output_sets[0]
+                delta_set = output_sets[1]
+                for proc in psets[delta_set].proc_ids:
+                    proc_states[proc].statetype = ProcessStateType.SHUTDOWN_ANNOUNCED
+            case "add":
+                delta_set = output_sets[0]
+                for proc in psets[delta_set].proc_ids:
+                    proc_states[proc].statetype = ProcessStateType.START_ANNOUNCED
+            case "sub":
+                delta_set = output_sets[0]
+                for proc in psets[delta_set].proc_ids:
+                    proc_states[proc].statetype = ProcessStateType.SHUTDOWN_ANNOUNCED
             case "replace":
-                pass
+                s_new = output_sets[0]
+                s_del = output_sets[1]
+                s_repl = output_sets[2]
+                for proc in psets[s_new].proc_ids:
+                    proc_states[proc].statetype = ProcessStateType.START_ANNOUNCED
+                for proc in psets[s_del].proc_ids:
+                    proc_states[proc].statetype = ProcessStateType.SHUTDOWN_ANNOUNCED
+
+        if op != "null":
+            # update all procs in the output
+            for pset in output_sets:
+                for proc in psets[pset].proc_ids:
+                    proc_states[proc].last_pset_id = pset
+
 
 
     def create_timeline(self):
@@ -116,12 +149,13 @@ class Timeline:
         for i, row in self.df.iterrows():
             event = row["event"]
             event_data = row["event_data"]
+            time = row["time"]
 
             # print(row["time"])
+            # print(event)
             # print(psets)
             # print([(k,v.is_active())for (k,v) in proc_states.items()])
             # print("=================================")
-            # print(event)
 
             match event:
                 case "set_start":
@@ -136,7 +170,9 @@ class Timeline:
                     # ignore for now
                     pass
                 case "new_pset":
-                    psets[event_data["id"]] = ProcessSetState(event_data["proc_ids"], row["time"])
+                    psets[event_data["id"]] = ProcessSetState(event_data["proc_ids"], time)
+                    print("new psets")
+                    print(psets)
                 case "process_start":
                     proc_id = event_data["proc_id"]
                     if proc_id in proc_states:
@@ -150,10 +186,15 @@ class Timeline:
                     else:
                         print(f"Ignoring invalid process_shutdown event for proc {proc_id}")
                 case "psetop":
+                    # updates proc_states
                     self.process_psetop(event_data, proc_states, psets)
                 case "finalize_psetop":
-                    # ignore for now
-                    pass
+                    # update pset states
+                    for proc in proc_states:
+                        if proc_states[proc].statetype == ProcessStateType.SHUTDOWN_ANNOUNCED:
+                            proc_states[proc].statetype = ProcessStateType.ABOUT_TO_SHUTDOWN
+                        elif proc_states[proc].statetype == ProcessStateType.START_ANNOUNCED:
+                            proc_states[proc].statetype = ProcessStateType.RUNNING
                 case "application_message":
                     # ignore for now
                     pass
@@ -165,27 +206,28 @@ class Timeline:
 
             prev_events.append(event)
 
-            print(i)
-            print(len(self.df)-1)
             # only update if there is something visual to show and update after each event in the same time point has been processed
             if i == len(self.df)-1 or \
                 (not all(ev in ["set_start", "job_start", "job_end"] for ev in prev_events) and \
-                self.df.iloc[i+1]["time"] != row["time"]):
-                print("Updating")
-                self.ts.append(row["time"])
+                 self.df.iloc[i+1]["time"] != time):
+                self.ts.append(time)
                 self.job_states.append(JobState(row["job_id"],
-                                                row["time"],
+                                                time,
                                                 deepcopy(proc_states),
                                                 deepcopy(psets),
                                                 events=deepcopy(prev_events)))
                 self.events.append(row)
                 prev_events = []
 
-        print(self.job_states[0].process_states[11].is_active())
+        print(f"Reduced {len(self.df)} events to {len(self.ts)} time points")
         # tun into numpy arrays
         self.ts = np.array(self.ts)
         self.job_states = np.array(self.job_states)
         self.events = np.array(self.events)
+
+
+
+
 
 
 class VisualizeDynProcs(Scene):
@@ -212,7 +254,7 @@ class VisualizeDynProcs(Scene):
                     y_range=[0, maxproc+1, 1],
                     axis_config={"color": axes_color},
                     x_axis_config={
-                        # "numbers_to_include": np.arange(self.timeline.ts[0], self.timeline.ts[-1], 1),
+                        "numbers_to_include": np.arange(self.timeline.ts[0], self.timeline.ts[-1], 5),
                         # "numbers_with_elongated_ticks": np.arange(self.timeline.ts[0], self.timeline.ts[-1], 1),
                     },
                     y_axis_config={
@@ -225,8 +267,8 @@ class VisualizeDynProcs(Scene):
         axes.scale(0.6)
         axes.shift(2*UP)
 
-        #labels = axes.get_axis_labels(x_label="time (s)", y_label="Proc")
-        #self.add(axes, labels)
+        labels = axes.get_axis_labels(x_label="time", y_label="Proc")
+        self.add(axes, labels)
         self.add(axes)
 
         line_segments = []
@@ -315,6 +357,7 @@ if __name__ == '__main__':
     parser.add_argument("--preview", "-p", action="store_true", default=False)
     parser.add_argument("--round-to", "-r", type=int, default=2)
     # TODO: add mode argument and ability to do moving camera
+    # TODO: add option to specify start end end time of visualization
 
     args = parser.parse_args()
 
