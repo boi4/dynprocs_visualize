@@ -109,19 +109,6 @@ class VisualizeDynProcs(Scene):
         labels = self.axes.get_axis_labels(x_label="time", y_label="Proc")
         self.add(self.axes, labels)
 
-        # compute line segments that should be followed by the processes
-        self.line_segments = []
-        self.line_segment_lengths = []
-        for t_0,t_1 in zip(self.timeline.ts[:-1], self.timeline.ts[1:]):
-            lines = []
-            line_lengths = []
-            for proc in range(self.maxproc+1):
-                l = Line(self.axes.c2p(t_0, proc+1), self.axes.c2p(t_1, proc+1), color=self.inactive_line_color, stroke_width=2)
-                lines.append(l)
-                line_lengths.append(t_1 - t_0)
-            self.line_segments.append(lines)
-            self.line_segment_lengths.append(line_lengths)
-
 
     def process_events(self, orig_rows, jobstate):
         # process events that happen at that time point
@@ -144,13 +131,23 @@ class VisualizeDynProcs(Scene):
                 case "finalize_psetop":
                     pset_messages.append(f"<b>Finalize</b>")
 
+        # get next highlight color
+        color = self.text_highlight_colors[self.text_highlight_index]
+        self.text_highlight_index = (self.text_highlight_index + 1) % len(self.text_highlight_colors)
+
+        # vertical line from top to bottom of axes at that time point
+        vertline = Line(self.axes.c2p(self.time, 0)+0.2*DOWN, self.axes.c2p(self.time, self.maxproc+1)+0.2*UP,
+                        color=color,
+                        stroke_width=1)
+        self.add(vertline)
+
         if application_messages:
-            self.add_event_text("\n& ".join(application_messages), base=0.7, is_pset_text=False)
+            self.add_event_text("\n& ".join(application_messages), base=0.7, is_pset_text=False, color=color)
         if pset_messages:
-            self.add_event_text("\n".join(pset_messages), base=2.5)
+            self.add_event_text("\n".join(pset_messages), base=2.2, color=color)
 
 
-    def add_event_text(self, text, base, is_pset_text=True):
+    def add_event_text(self, text, base, is_pset_text=True, color=RED):
         scale = 0.16
         line_height = scale
         max_width = 90
@@ -174,12 +171,7 @@ class VisualizeDynProcs(Scene):
         t = cls(text, color=self.text_color).scale(scale)
         # create indicator that will be next to the text
         text_line = Line(self.axes.c2p(self.time, 0), self.axes.c2p(self.time, 0) + (t.height*DOWN),
-                         color=self.text_highlight_colors[self.text_highlight_index], stroke_width=2)
-        # vertical line from top to bottom of axes at that time point
-        vertline = Line(self.axes.c2p(self.time, 0)+0.2*DOWN, self.axes.c2p(self.time, self.maxproc+1)+0.2*UP,
-                        color=self.text_highlight_colors[self.text_highlight_index],
-                        stroke_width=1)
-        self.text_highlight_index = (self.text_highlight_index + 1) % len(self.text_highlight_colors)
+                         color=color, stroke_width=2)
 
         text_line.move_to(self.axes.c2p(self.time, 0)).shift((base + cur_line * line_height) * DOWN)
         text_line.shift(0.5 * text_line.width * RIGHT)
@@ -187,10 +179,7 @@ class VisualizeDynProcs(Scene):
         t.align_to(text_line, LEFT)
         t.shift(0.05 * RIGHT)
 
-        #t.align_to(text_line, RIGHT)
-        #vg.shift(0.5 * vg.width * RIGHT)
-
-        self.add(VGroup(text_line, t), vertline)
+        self.add(VGroup(text_line, t))
 
         cur_line += num_lines
         # add one line as separator
@@ -282,27 +271,14 @@ class VisualizeDynProcs(Scene):
                 dot.become(Cross(dot, color=PURE_RED))
 
 
-        # move each dot along its line segment
-        vg = VGroup()
 
-        # we get it for proc 0 but they are all equal anyways
-        line_segment = self.line_segments[iteration][0]
-        line_segment_length = self.line_segment_lengths[iteration][0]
+        # put active dots into group
+        vg = VGroup(*self.proc_to_dot.values())
 
-        for proc, proc_state in job_state.process_states.items():
-            if proc_state.is_visualized():
-                # line_segment = self.line_segments[iteration][proc]
-                # line_segment_length = self.line_segment_lengths[iteration][proc]
-                vg.add(self.proc_to_dot[proc])
-                #animation = MoveAlongPath(self.proc_to_dot[proc], line_segment, run_time=line_segment_length/self.speed_factor, rate_func=linear)
-                #animations.append(animation)
-
-        animation = vg.animate.shift(np.linalg.norm(line_segment.get_end() - line_segment.get_start()) * RIGHT)
-        self.play(animation, run_time=line_segment_length/self.speed_factor, rate_func=linear)
-
-        # # play animations in parallel
-        # if animations:
-        #     self.play(*animations)
+        # animate
+        dt = self.timeline.ts[iteration+1] - self.timeline.ts[iteration]
+        animation = vg.animate.shift((self.axes.c2p(dt,0)-self.axes.c2p(0,0))[0] * RIGHT)
+        self.play(animation, run_time=dt/self.speed_factor, rate_func=linear)
 
 
 
@@ -323,10 +299,11 @@ if __name__ == '__main__':
     parser.add_argument("--log-file", "-l", type=str, default="log.csv")
     parser.add_argument("--quality", "-q", type=str, default="low_quality", choices=["low_quality", "medium_quality", "high_quality"])
     parser.add_argument("--preview", "-p", action="store_true", default=False)
-    parser.add_argument("--round-to", "-r", type=int, default=3, help="On how many 10*r miliseconds to round the time to")
+    parser.add_argument("--round-to", "-r", type=int, default=3, help="On how many 10^r miliseconds to round the time to")
     # TODO: add mode argument and ability to do moving camera
     # TODO: add option to specify start end end time of visualization
     # TODO: add binary flag whether to show all legend items at beginning
+    # TODO: remove the line segments variable
 
     args = parser.parse_args()
 

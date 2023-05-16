@@ -67,7 +67,8 @@ class Timeline:
 
         # order df by time
         # need stable sorting algorithjm
-        self.df = self.df.sort_values(by=['unixtimestamp'], kind='mergesort')
+        self.df = self.df.sort_values(by=['unixtimestamp'], kind='mergesort',
+                                      ignore_index=True)
 
         # round and compute relative time
         if self.rounding is not None:
@@ -218,7 +219,7 @@ class Timeline:
             # only update if there is something visual to show and update after each event in the same time point has been processed
             if i == len(self.df)-1 or \
                 (not all(ev in ["set_start", "job_start", "job_end"] for ev in prev_events) and \
-                 self.df.iloc[i+1]["time"] != time):
+                 float(self.df.iloc[i+1]["time"]) != time):
                 self.ts.append(time)
                 self.job_states.append(JobState(row["job_id"],
                                                 time,
