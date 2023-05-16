@@ -16,7 +16,7 @@ class HeatEqu(ThreeDScene):
         self.t0 = 0
         self.num_timesteps = 3
         self.num_space = 4 # must be square number
-        self.dt = 0.01
+        self.dt = 0.005
 
         self.sidelen_c = np.pi
 
@@ -34,11 +34,11 @@ class HeatEqu(ThreeDScene):
         self.split_colors = self.split_colors[:self.num_space]
 
         self.axes = ThreeDAxes(
-                x_range=[-1.2*self.sidelen_c,1.2*self.sidelen_c,1],
-                x_length=8,
-                y_range=[-1.2*self.sidelen_c,1.2*self.sidelen_c,1],
-                y_length=8,
-                z_range=[self.z_min,self.z_max,self.dt],
+                x_range=[-1.5*self.sidelen_c,1.5*self.sidelen_c,1],
+                x_length=11,
+                y_range=[-1.5*self.sidelen_c,1.5*self.sidelen_c,1],
+                y_length=11,
+                z_range=[self.z_min,self.z_max,self.dt/5],
                 z_length=3*(self.z_max-self.z_min)/self.dt,
                 )
 
@@ -48,17 +48,25 @@ class HeatEqu(ThreeDScene):
         self.dt_p = (self.axes.c2p(0,0,self.dt) - self.axes.c2p(0,0,0))[2]
         self.axes.shift(3*IN)
 
-        labels = self.axes.get_axis_labels(
-                "", "", "t"
+        self.axes_labels = self.axes.get_axis_labels(
+                "x", "y", "t"
                 )
 
         # self.add_fixed_orientation_mobjects(axes)
 
         # self.add_fixed_orientation_mobjects(labels)
-        self.add(self.axes, labels)
+        self.add(self.axes, self.axes_labels)
 
-        # remove x and y axes
-        self.axes.remove(self.axes[0], self.axes[1])
+
+        t = Text("Time →")
+        t.rotate(90*DEGREES, axis=RIGHT)
+        t.rotate(270*DEGREES, axis=UP)
+        t.scale(0.4)
+        self.add(t)
+        t.move_to(self.axes.c2p(0,0,3*self.dt) + 0.5*LEFT)
+
+        # # remove x and y axes
+        # self.axes.remove(self.axes[0], self.axes[1])
 
         # setup grid + label along each timestep
         self.grids = {}
@@ -203,6 +211,7 @@ class HeatEqu(ThreeDScene):
             self.bring_to_back(p)
 
         self.play(FadeIn(self.cur_text), *[FadeIn(p) for p in planes[1:]])
+        self.play(FadeOut(self.cur_text))
 
 
 
@@ -224,19 +233,20 @@ class HeatEqu(ThreeDScene):
 
 
         # STEP: move everything down by number of timesteps
-        self.play(FadeOut(self.cur_text))
         self.update_text("Move to next block")
         self.play(FadeIn(self.cur_text))
         animations = []
         for g in self.grids.values():
             animations.append(g.animate.shift(IN*self.dt_p*self.num_timesteps))
         animations.append(self.axes.animate.shift(IN*self.dt_p*self.num_timesteps))
-        self.play(*animations, run_time=5)
+        animations.append(self.axes_labels.animate.shift(IN*self.dt_p*self.num_timesteps))
+        self.play(*animations, run_time=2)
         self.play(FadeOut(self.cur_text))
 
 
 
         ## STEP: solve next block
+        self.remove(*planes[1:])
         planes = [self.get_value_plane(self.t0+(i+self.num_timesteps)*(self.dt)) for i in range(self.num_timesteps+1)]
 
         self.update_text("Solve next block")
@@ -245,7 +255,6 @@ class HeatEqu(ThreeDScene):
         for p in planes[1:]:
             self.bring_to_back(p)
 
-        self.remove(*planes[1:])
         self.play(FadeIn(self.cur_text), *[FadeIn(p) for p in planes[1:]])
         self.play(FadeOut(self.cur_text))
 
@@ -299,7 +308,7 @@ class HeatEqu(ThreeDScene):
 
             pos = self.get_proc_pos_c(i*self.num_timesteps, base_t)
             # fix z position
-            pos[2] = self.dt*(base_t + (num_timesteps_height-1)/2)
+            pos[2] = self.dt*(base_t + num_timesteps_height/2)
             psets[-1].move_to(self.axes.c2p(*pos))
         return psets
 
