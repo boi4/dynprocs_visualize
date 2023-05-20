@@ -9,6 +9,17 @@ It was developed and tested with manim==0.17.3 (The community edition)
 For rapid development, this command worked best for me (from the parent dir):
 
 manim render --disable_caching -p -qm ./other_scenes/libpfasst_dynamic.py --renderer opengl
+
+To create a mp4 file I use this command:
+
+manim render --disable_caching --write_to_movie -qh ./other_scenes/libpfasst_dynamic.py --renderer opengl
+
+To create a mp4 file at half speed use this:
+
+manim render --disable_caching --write_to_movie -qh ./other_scenes/libpfasst_dynamic.py --renderer opengl --fps 120
+ffmpeg -i media/videos/libpfasst_dynamic/1080p120/HeatEqu.mp4 -filter:v "setpts=PTS*2, fps=60" media/videos/libpfasst_dynamic/1080p60/HeatEqu_Slow.mp4
+
+for 4k video, replace -qh with -qk
 """
 from manim import *
 from manim.opengl import *
@@ -70,10 +81,8 @@ class HeatEqu(ThreeDScene):
         ## STEP: Setup Axes
         self.update_text(f"<b>2D Heat Equation</b>\n\n<i>parallel and\nadaptive in time</i>")
         self.setup_axes()
-        self.play(FadeIn(self.cur_text), FadeIn(self.axes), FadeIn(self.axes_labels), *[FadeIn(v) for v in self.grids.values()], FadeIn(self.time_arrow))
+        self.play(FadeIn(self.cur_text), FadeIn(self.axes), FadeIn(self.axes_labels), FadeIn(self.grids), FadeIn(self.time_arrow))
         self.play(FadeOut(self.cur_text))
-
-
 
 
         ## STEP: show mpi://WORLD
@@ -86,90 +95,65 @@ class HeatEqu(ThreeDScene):
 
         self.play(FadeOut(self.cur_text))
 
+        # ungroup world_box
+        self.pv_procs_group.remove(world_box)
+        self.add(world_box)
 
 
 
-        ## STEP: show processes and communicators on axes
+        ### STEP: add procs to 3d view and split up mpi://WORLD
+        space_psets,_,time_psets,_ = self.pv_split_set_grid(self.pv_procs_group)
+
+        space_boxes = self.create_space_pset_boxes(self.t0 + self.cur_step*self.dt, self.num_timesteps)
+        time_boxes = self.create_time_pset_boxes(self.t0 + self.cur_step*self.dt, self.num_timesteps)
+
+        self.update_text("Split up <span foreground='yellow'>mpi://WORLD</span>\ninto grid")
+
         # put processes onto axis
-        self.update_text("Each process is assigned\na space slice\nand a timestep")
-
         self.processes = self.create_axes_processes(self.num_timesteps, self.t0 + self.cur_step*self.dt)
+
         self.play(FadeIn(self.cur_text), *[FadeIn(p) for p in self.processes])
 
-        # remove world_box
-        self.pv_procs_group.remove(world_box)
+        # remove world box
         self.play(FadeOut(self.cur_text), FadeOut(world_box))
 
+        # highlight time psets
+        self.update_text(f"psets across time")
+        self.play(*[FadeIn(b) for b in time_boxes], FadeIn(self.cur_text), *[FadeIn(p) for p in time_psets])
+        # self.bring_to_front(self.pv_procs_group)
+        self.wait(1)
+        self.play(*[FadeOut(b) for b in time_boxes], FadeOut(self.cur_text))
 
+        # highlight space psets
+        self.update_text(f"psets across space")
+        self.play(*[FadeIn(b) for b in space_boxes], FadeIn(self.cur_text), *[FadeIn(p) for p in space_psets])
+        self.wait(1)
+        self.play(*[FadeOut(b) for b in space_boxes], FadeOut(self.cur_text))
 
-        ### STEP: split up mpi://WORLD
-        space_boxes, space_arrows, time_boxes, time_arrows = self.pv_split_set_grid(self.pv_procs_group)
-        self.update_text("Split up <span foreground='yellow'>mpi://WORLD</span>\ninto grid")
-        self.add(*time_boxes)
-        self.add(*space_boxes)
+        self.bring_to_front(*space_psets)
         self.bring_to_front(self.pv_procs_group)
-        self.play(FadeIn(self.cur_text))
-        self.play(FadeOut(self.cur_text))
-
-
-        # # TODO: for some reason, arrows are not shown
-        # self.update_text("Split into space psets")
-        # self.add(*space_boxes)
-        # self.add(*space_arrows)
-        # self.bring_to_back(*space_boxes)
-        # self.play(FadeIn(self.cur_text))
-        # self.remove(*space_arrows)
-        # self.play(FadeOut(self.cur_text))
-
-        # self.update_text("Split into time psets")
-        # self.add(*time_boxes)
-        # self.add(*time_arrows)
-        # self.bring_to_back(*time_boxes)
-        # self.play(FadeIn(self.cur_text))
-        # self.remove(*time_arrows)
-        # self.play(FadeOut(self.cur_text))
-
-
-
-
-
-        ## STEP: highlight pfasst psets
-        space_psets = self.create_space_pset_boxes(self.t0 + self.cur_step*self.dt, self.num_timesteps)
-        time_psets = self.create_pfasst_pset_boxes(self.t0 + self.cur_step*self.dt, self.num_timesteps)
-
-        self.update_text(f"Space communicators\nfrom space psets")
-        # TODO: for some reason, FadeIn does not work here
-        self.add(*space_psets)
-        # self.play(*[FadeIn(p) for p in space_psets], FadeIn(self.cur_text))
-        self.play(FadeIn(self.cur_text), *[FadeOut(p) for p in time_boxes])
-        self.wait(0.5)
-        self.add(*time_boxes)
-        self.bring_to_front(*space_boxes)
-        self.bring_to_front(self.pv_procs_group)
-        self.play(*[FadeOut(p) for p in space_psets], FadeOut(self.cur_text), *[FadeIn(p) for p in time_boxes])
-
-        self.update_text(f"Time communicators\nfrom time psets")
-        self.play(*[FadeIn(p) for p in time_psets], FadeIn(self.cur_text), *[FadeOut(p) for p in space_boxes])
-        self.play(*[FadeOut(p) for p in time_psets], FadeOut(self.cur_text))
-
-        # add them back and show in next animation
-        self.add(*space_boxes)
-        self.bring_to_front(self.pv_procs_group)
-
 
 
         ## STEP: show initial condition
-        self.update_text("Setup initial condition")
+        self.update_text("Start PFASST algorithm")
+        self.play(FadeIn(self.cur_text))
+        self.play(FadeOut(self.cur_text))
+
+        ## STEP: solve pfasst block
+        # self.update_text("Setup initial condition")
+        self.update_text(f"Solve PFASST block\nwith <span foreground='green'>{self.num_timesteps} parallel time steps</span>")
+        self.play(FadeIn(self.cur_text))
         self.panes = self.create_initial_condition_planes(self.num_timesteps, self.t0 + self.cur_step*self.dt)
 
-        self.play(FadeIn(self.cur_text), *[FadeIn(p) for p in self.panes])
-        self.play(FadeOut(self.cur_text))
+        self.play(*[FadeIn(p) for p in self.panes])
+        # self.play(FadeOut(self.cur_text))
 
 
         ## STEP: solve pfasst block
-        self.update_text("Solve PFASST block")
+        # self.update_text("Solve PFASST block")
         animations = self.solve_animations()
-        self.play(*animations, FadeIn(self.cur_text))
+        # self.play(*animations, FadeIn(self.cur_text))
+        self.play(*animations)
         self.play(FadeOut(self.cur_text))
 
 
@@ -187,15 +171,13 @@ class HeatEqu(ThreeDScene):
 
 
 
-
-
         ## STEP: Addition of new processes
         # "Zoom out"
         #
         ## Add pset process sets back
         vg = VGroup()
         vg.add(self.axes)
-        vg.add(*self.grids.values())
+        vg.add(self.grids)
         vg.add(*self.processes)
         # g.add(*panes)
         animations = []
@@ -226,7 +208,7 @@ class HeatEqu(ThreeDScene):
         animations = []
         self.update_text("Runtime:\nnew set <span foreground='yellow'>mpi://add_0</span>")
         # create new pset in process view (bottom left)
-        new_pv_procs_group, new_pv_procs, new_world_box = self.pv_new_pset(num_new_timesteps)
+        new_pv_procs_group, new_pv_procs, new_world_pset = self.pv_new_pset(num_new_timesteps)
         animations.append(FadeIn(new_pv_procs_group))
 
         # Also add new circles on 3d axes
@@ -235,50 +217,48 @@ class HeatEqu(ThreeDScene):
 
         self.play(*animations, FadeIn(self.cur_text))
 
-        # remove world_box
-        new_pv_procs_group.remove(new_world_box)
-        self.play(FadeOut(self.cur_text), FadeOut(new_world_box))
+        # remove world_pset
+        new_pv_procs_group.remove(new_world_pset)
+        self.play(FadeOut(self.cur_text), FadeOut(new_world_pset))
 
 
         ### STEP: split up new processes
-        new_space_boxes, _, new_time_boxes, _ = self.pv_split_set_grid(new_pv_procs_group)
-        new_time_psets = self.create_pfasst_pset_boxes(self.t0 + (self.cur_step + self.num_timesteps)*self.dt, num_new_timesteps)
+        animations = []
+        new_space_psets, _, new_time_psets, _ = self.pv_split_set_grid(new_pv_procs_group)
+        new_time_boxes = self.create_time_pset_boxes(self.t0 + (self.cur_step + self.num_timesteps)*self.dt, num_new_timesteps)
 
         self.update_text("Split up <span foreground='yellow'>mpi://add_0</span>\ninto grid")
-        self.add(*new_time_boxes, *new_space_boxes)
-        self.bring_to_front(new_pv_procs_group)
+        animations += [FadeIn(p) for p in new_time_psets]
+        animations += [FadeIn(p) for p in new_space_psets]
 
         # also show old time psets
-        old_time_psets = self.create_pfasst_pset_boxes(self.t0 + self.cur_step*self.dt, self.num_timesteps)
-        animations = []
-        for box in old_time_psets:
-            # make small gap with the boxes
-            height = (box.get_zenith() - box.get_nadir())[2]
-            box.stretch(0.90, 2)
-            new_height = (box.get_zenith() - box.get_nadir())[2]
-            box.shift(IN*(height-new_height)/2)
-            animations.append(FadeIn(box))
+        old_time_boxes = self.create_time_pset_boxes(self.t0 + self.cur_step*self.dt, self.num_timesteps, height_factor=0.9)
 
-        animations += [FadeIn(box) for box in new_time_psets]
+        animations += [FadeIn(box) for box in new_time_boxes]
         self.play(FadeIn(self.cur_text), *animations)
-        self.play(FadeOut(self.cur_text))
+        self.bring_to_front(*new_space_psets)
+        self.bring_to_front(new_pv_procs_group)
+
+        animations = [FadeIn(box) for box in old_time_boxes]
+        self.play(FadeOut(self.cur_text), *animations)
 
 
         ### STEP: merge time psets
         # create boxes for new splits
         self.update_text(f"{self.num_space} union operations:\n\nMerge new time psets\nwith old time psets")
-        joined_time_psets = self.create_pfasst_pset_boxes(self.t0+self.cur_step*self.dt, self.num_timesteps+num_new_timesteps)
+        joined_time_boxes = self.create_time_pset_boxes(self.t0+self.cur_step*self.dt, self.num_timesteps+num_new_timesteps)
 
         # fade out space related stuff and fade in new time psets on 3d axes
         animations = []
-        animations += [FadeOut(space_box) for space_box in space_boxes]
-        animations += [FadeOut(new_space_box) for new_space_box in new_space_boxes]
+        animations += [FadeOut(space_pset) for space_pset in space_psets]
+        animations += [FadeOut(new_time_pset) for new_time_pset in new_time_psets]
+        animations += [FadeOut(new_space_pset) for new_space_pset in new_space_psets]
         self.play(*animations, FadeIn(self.cur_text))
 
         # merge time psets
 
         # merge in bottom left process view
-        # remove new pset boxes
+        # remove new psets
         animations += [FadeOut(new_time_box) for new_time_box in new_time_boxes]
 
 
@@ -302,46 +282,46 @@ class HeatEqu(ThreeDScene):
 
         # rearrange into grid
         # animations.append(self.pv_procs_group.animate.arrange_in_grid(cols=self.num_space, flow_order="ul"))
-        self.pv_procs_group.arrange_in_grid(cols=self.num_space, flow_order="ul")
-        animations.append(self.pv_procs_group.animate.to_edge(DOWN))
-
-        self.play(*animations)
-
-
-        # create new boundary boxes
-        new_space_boxes, _, new_time_boxes, _ = self.pv_split_set_grid(self.pv_procs_group)
-
-        # transform old time boxes into new time boxes
         animations = []
-        for box,new_time_box in zip(time_boxes, new_time_boxes):
-            animations.append(box.animate.become(new_time_box))
+        self.play(self.pv_procs_group.animate.arrange_in_grid(cols=self.num_space, flow_order="ul"))
+
+
+        # create new boundary psets
+        new_space_psets, _, new_time_psets, _ = self.pv_split_set_grid(self.pv_procs_group)
+
+        # transform old time psets into new time psets
+        animations = []
+        for pset,new_time_pset in zip(time_psets, new_time_psets):
+            animations.append(pset.animate.become(new_time_pset))
 
         # merge on 3d axes
-        for (pset1,pset2,joined) in zip(new_time_psets, old_time_psets, joined_time_psets):
-            animations += [FadeOut(pset1), FadeOut(pset2), FadeIn(joined)]
+        for (box1,box2,joined) in zip(new_time_boxes, old_time_boxes, joined_time_boxes):
+            animations += [FadeOut(box1), FadeOut(box2), FadeIn(joined)]
 
         self.play(*animations)
 
-        animations = [FadeIn(new_space_box) for new_space_box in new_space_boxes]
+        animations = [FadeIn(new_space_pset) for new_space_pset in new_space_psets]
+        animations += [FadeOut(box) for box in joined_time_boxes]
         self.play(*animations, FadeOut(self.cur_text))
+        self.bring_to_front(self.pv_procs_group)
 
         # update more variables
-        time_boxes = new_time_boxes
-        space_boxes = new_space_boxes
+        space_psets = new_space_psets
+        time_boxes = joined_time_boxes
+
+
+        ## STEP: solve pfasst block
+        self.update_text(f"Solve PFASST block\nwith <span foreground='green'>{self.num_timesteps} parallel time steps</span>")
+        self.play(FadeIn(self.cur_text))
 
         # remove time psets and add initial conditions
         self.panes = self.create_initial_condition_planes(self.num_timesteps, self.t0 + self.cur_step*self.dt)
         animations = []
-        animations += [FadeOut(pset) for pset in joined_time_psets]
         animations += [FadeIn(p) for p in self.panes]
         self.play(*animations)
 
-
-        ## STEP: solve pfasst block
-        self.update_text(f"Solve PFASST block\nwith <span foreground='green'>{self.num_timesteps}</span> parallel time steps")
         animations = self.solve_animations()
-        self.play(*animations, FadeIn(self.cur_text))
-        self.play(FadeOut(self.cur_text))
+        self.play(*animations, FadeOut(self.cur_text))
 
 
         ## STEP: spread solution
@@ -357,12 +337,190 @@ class HeatEqu(ThreeDScene):
 
 
 
-        self.update_text("Case 2:\nRemoval of existing processes")
+        num_rm_steps = 3
+
+        self.update_text("Case 2:\nRemoval of existing\nprocesses")
 
         self.play(FadeIn(self.cur_text))
         self.play(FadeOut(self.cur_text))
 
+
+        self.update_text(f"Decide to remove\n<span foreground='green'>{num_rm_steps} time steps</span>")
+
+        # show time boxes
+        animations = []
+        animations += [FadeIn(time_box) for time_box in time_boxes]
+        self.play(*animations, FadeIn(self.cur_text))
+        self.play(FadeOut(self.cur_text))
+
+
+        # add space psets
+        space_boxes = self.create_space_pset_boxes(self.t0 + (self.cur_step+self.num_timesteps-num_rm_steps)*self.dt, num_rm_steps)
+        for b in space_boxes:
+            b.fill_opacity = 0.1
+        self.play(*[FadeIn(box) for box in space_boxes])
+
+
+
+        ## STEP: union last n time processors
+
+        rm_psets = space_psets[len(space_psets)-num_rm_steps:]
+        new_space_psets = space_psets[:-num_rm_steps]
+        self.update_text(f"Union <span foreground='green'>last {num_rm_steps}\nspace psets</span>")
+        animations = []
+        animations += [FadeOut(space_pset) for space_pset in new_space_psets]
+        self.play(*animations, FadeIn(self.cur_text))
+
+        animations = []
+
+
+        # construct union pset
+        new_pset = rm_psets[0].copy()
+        new_height = new_pset.height + (rm_psets[-1].get_center()-rm_psets[0].get_center())[1]
+        new_pset.stretch(new_height/new_pset.height, 1)
+        pos = (rm_psets[-1].get_center() + rm_psets[0].get_center()) / 2
+        new_pset.move_to(pos)
+        new_pset.fill_opacity = 0.1
+        self.add_fixed_in_frame_mobjects(new_pset)
+        self.remove(new_pset)
+
+        rm_box = self.create_space_pset_boxes(self.t0 + (self.cur_step+self.num_timesteps-num_rm_steps)*self.dt, 1, height_factor=num_rm_steps)[0]
+        rm_box.fill_opacity = 0.1
+
+        animations.append(FadeIn(new_pset))
+        animations += [FadeOut(rm_pset) for rm_pset in rm_psets]
+        animations += [FadeOut(space_box) for space_box in space_boxes]
+        animations.append(FadeIn(rm_box))
+        self.play(*animations, FadeOut(self.cur_text))
+        self.bring_to_front(self.pv_procs_group)
+
+
+        ## STEP: do 4 difference operations
+        self.update_text(f"Do <span foreground='green'>{self.num_space} difference\noperations</span>")
+        animations = []
+        self.play(*animations, FadeIn(self.cur_text))
+
+
+
+        animations = []
+        # rm_time_boxes = self.create_time_pset_boxes(self.t0 + (self.cur_step+self.num_timesteps-num_rm_steps)*self.dt, num_rm_steps, height_factor=1.0)
+        # # make the gap be at the bottom instead of the top
+        # for box in rm_time_boxes:
+        #     ceiling = self.axes.c2p(self.get_valuepane_pos(self.t0 + (self.cur_step+self.num_timesteps)*self.dt))[2]
+        #     box.set_z(ceiling - box.get_height()/2)
+
+        # with small gap
+        new_time_boxes = self.create_time_pset_boxes(self.t0 + (self.cur_step)*self.dt, self.num_timesteps - num_rm_steps)
+
+        animations += [FadeOut(time_box) for time_box in time_boxes]
+        animations += [FadeIn(new_time_box) for new_time_box in new_time_boxes]
+        # animations += [FadeIn(rm_time_box) for rm_time_box in rm_time_boxes]
+
+
+        # update some variables
+        # ungroup old vgroup
+        self.add(*self.pv_procs)
+        self.pv_procs_group.remove(*self.pv_procs)
+
+        new_pv_p = []
+        rm_pv_p = []
+        new_p = []
+        rm_p = []
+        new_nt = self.num_timesteps - num_rm_steps
+        for i in range(self.num_space):
+            new_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(new_nt)]
+            new_p += [self.processes[i*self.num_timesteps + j] for j in range(new_nt)]
+            rm_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(new_nt, self.num_timesteps)]
+            rm_p += [self.processes[i*self.num_timesteps + j] for j in range(new_nt, self.num_timesteps)]
+
+        self.pv_procs = new_pv_p
+        self.pv_procs_group = VGroup(*new_pv_p)
+        self.processes = new_p
+        self.num_timesteps = self.num_timesteps - num_rm_steps
+
+        # create new boundary psets
+        space_psets, _, new_time_psets, _ = self.pv_split_set_grid(self.pv_procs_group)
+
+        # move rm processes up
+        animations.append(VGroup(*rm_pv_p).animate.shift(0.2*UP))
+        animations.append(new_pset.animate.shift(0.2*UP))
+        animations.append(rm_box.animate.shift(0.5*OUT))
+        for p in rm_p:
+            animations.append(p.animate.shift(0.5*OUT))
+
+        # shrink time psets
+        animations += [time_pset.animate.become(new_time_pset) for time_pset, new_time_pset in zip(time_psets, new_time_psets)]
+
+        self.play(*animations, FadeOut(self.cur_text))
+        self.wait(1)
+
+        ## STEP: Remove processes
+        self.update_text(f"Processes shut down")
+        animations = []
+        animations += [FadeOut(rm_box)]
+        animations += [FadeOut(new_pset)]
+
+        animations += [FadeOut(p) for p in rm_pv_p]
+        animations += [FadeOut(p) for p in rm_p]
+
+        animations += [FadeIn(p) for p in space_psets]
+
+        self.play(*animations, FadeIn(self.cur_text))
+
+        self.bring_to_front(self.pv_procs_group)
+
+
+
+
+        ## STEP "Zoom in"
+        ## Add pset process sets back
+        vg = VGroup()
+        vg.add(self.axes)
+        vg.add(*self.grids)
+        vg.add(*self.processes)
+        # g.add(*panes)
+        animations = []
+        animations += [FadeOut(time_box) for time_box in new_time_boxes]
+        animations.append(vg.animate.shift(IN*5.3).scale(1/0.6))
+        animations.append(FadeOut(self.cur_text))
+        self.play(*animations)
+
+        # update c2p
+        self.sidelen_p = (self.axes.c2p(self.sidelen_c,0,0)-self.axes.c2p(0,0,0))[0]
+        self.dt_p = (self.axes.c2p(0,0,self.dt) - self.axes.c2p(0,0,0))[2]
+
+        for proc in self.processes:
+            vg.remove(proc)
+        for proc in self.processes:
+            vg.add(proc)
+
+
+        ## STEP: solve pfasst block
+        # remove time psets and add initial conditions
+        self.update_text(f"Solve PFASST block\nwith <span foreground='green'>{self.num_timesteps} parallel time steps</span>")
+        self.play(FadeIn(self.cur_text))
+
+        self.panes = self.create_initial_condition_planes(self.num_timesteps, self.t0 + self.cur_step*self.dt)
+        animations = []
+        animations += [FadeIn(p) for p in self.panes]
+        self.play(*animations)
+
+        animations = self.solve_animations()
+        self.play(*animations, FadeOut(self.cur_text))
+
+
+        ## STEP: spread solution
+        self.update_text("Bcast solution for next\ntime block")
+        animations1, animations2 = self.spread_solution_animations()
+        self.play(*animations1, FadeIn(self.cur_text))
+        self.play(*animations2, FadeOut(self.cur_text))
+
+        # STEP: move everything down by number of timesteps
+        self.move_next_block()
+
+
         self.wait(2)
+
 
 
 
@@ -407,7 +565,7 @@ class HeatEqu(ThreeDScene):
         # self.axes.remove(self.axes[0], self.axes[1])
 
         # setup grid + label along each timestep
-        self.grids = {}
+        self.grids = VGroup()
         for i in range(int(self.z_max/self.dt)):
             t = self.t0 + i*self.dt
             grid = VGroup(
@@ -421,7 +579,7 @@ class HeatEqu(ThreeDScene):
             t_label.move_to(self.axes.c2p(-0.5, self.sidelen_c/2,t))
             self.bring_to_back(t_label)
             vg = VGroup(grid, t_label)
-            self.grids[t] = vg
+            self.grids.add(vg)
 
 
     def pv_new_pset(self, num_new_timesteps):
@@ -525,8 +683,7 @@ class HeatEqu(ThreeDScene):
     def move_next_block(self):
         self.update_text("Move to next block")
         animations = []
-        for g in self.grids.values():
-            animations.append(g.animate.shift(IN*self.dt_p*self.num_timesteps))
+        animations.append(self.grids.animate.shift(IN*self.dt_p*self.num_timesteps))
         animations.append(self.axes.animate.shift(IN*self.dt_p*self.num_timesteps))
         animations.append(self.axes_labels.animate.shift(IN*self.dt_p*self.num_timesteps))
 
@@ -617,20 +774,23 @@ class HeatEqu(ThreeDScene):
         y_pos = (0.5 + i//self.num_space_side)/self.num_space_side * self.sidelen_c
         return np.array([x_pos, y_pos, z_pos])
 
-    def create_pfasst_pset_boxes(self, base_t, num_timesteps_height):
+    def create_time_pset_boxes(self, base_t, num_timesteps_height, height_factor=1.0):
         psets = []
         for i in range(self.num_space):
             # create prism that spans each split
             prism = Prism(dimensions=[1,1,1], fill_color=self.split_colors[i], fill_opacity=0.2, stroke_width=0)
-            for dim, factor in zip(range(3), [self.sidelen_p/self.num_space_side, self.sidelen_p/self.num_space_side, self.dt_p*num_timesteps_height]):
+            factors = [self.sidelen_p/self.num_space_side, self.sidelen_p/self.num_space_side, self.dt_p*num_timesteps_height]
+            factors[-1] *= height_factor
+            for dim, factor in zip(range(3), factors):
                 prism.stretch(factor/2, dim)
             psets.append(prism)
 
             # cylinder = Cylinder(height=dt_p*(num_timesteps-1), radius=0.2, fill_color=split_colors[i], fill_opacity=0.2, stroke_width=0)
             pos = self.get_proc_pos_c(i*num_timesteps_height, base_t, num_timesteps_height)
+            pos = self.axes.c2p(*pos)
             # fix z position
-            pos[2] = base_t + self.dt*((num_timesteps_height)/2)
-            prism.move_to(self.axes.c2p(*pos))
+            pos[2] += factors[-1]/2
+            prism.move_to(pos)
             # print(radius)
             # print(height)
             # radius = self.processes[0].width/2
@@ -642,15 +802,15 @@ class HeatEqu(ThreeDScene):
         return psets
 
 
-    def create_space_pset_boxes(self, base_t, num_timesteps_height):
+    def create_space_pset_boxes(self, base_t, num_timesteps_height, height_factor=0.7):
         psets = []
         for i in range(num_timesteps_height):
             # create prism that spans each split
             prism = Prism(dimensions=[1,1,1], fill_color=self.space_pset_color, fill_opacity=0.2, stroke_width=0)
-            factors = [self.sidelen_p, self.sidelen_p, self.dt_p*2/3]
+            factors = [self.sidelen_p, self.sidelen_p, self.dt_p]
+            factors[-1] = factors[-1]*height_factor
             for dim, factor in zip(range(3), factors):
                 prism.stretch(factor/2, dim)
-            psets.append(prism)
 
             # cylinder = Cylinder(height=dt_p*(num_timesteps-1), radius=0.2, fill_color=split_colors[i], fill_opacity=0.2, stroke_width=0)
             pos = self.get_valuepane_pos(base_t + self.dt*i)
