@@ -17,7 +17,12 @@ manim render --disable_caching --write_to_movie -qh ./other_scenes/libpfasst_dyn
 To create a mp4 file at half speed use this:
 
 manim render --disable_caching --write_to_movie -qh ./other_scenes/libpfasst_dynamic.py --renderer opengl --fps 120
-ffmpeg -i media/videos/libpfasst_dynamic/1080p120/HeatEqu.mp4 -filter:v "setpts=PTS*2, fps=60" media/videos/libpfasst_dynamic/1080p60/HeatEqu_Slow.mp4
+ffmpeg -i media/videos/libpfasst_dynamic/1080p120/HeatEqu.mp4 -filter:v "setpts=PTS*2,fps=60" media/videos/libpfasst_dynamic/1080p60/HeatEqu_Slow.mp4
+
+or with 4k and half speed:
+
+manim render --disable_caching --write_to_movie -qk ./other_scenes/libpfasst_dynamic.py --renderer opengl --fps 120
+ffmpeg -i media/videos/libpfasst_dynamic/2160p120/HeatEqu.mp4 -filter:v "setpts=PTS*2,fps=60" media/videos/libpfasst_dynamic/2160p60/HeatEqu_Slow.mp4
 
 for 4k video, replace -qh with -qk
 """
