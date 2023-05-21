@@ -298,18 +298,20 @@ if __name__ == '__main__':
 
     parser.add_argument("--quality", "-q", type=str, default="low_quality", choices=["low_quality", "medium_quality", "high_quality"])
     parser.add_argument("--preview", "-p", action="store_true", default=False)
-    parser.add_argument("--round-to", "-r", type=int, default=3, help="On how many 10^r miliseconds to round the time to")
+    parser.add_argument("--round-to", "-r", type=int, default=3, help="On how many 10^r miliseconds to round the time to when aligning events")
+    parser.add_argument("--save_last_frame", "-s", action="store_true", default=False, help="Save as last frame as a picture")
     parser.add_argument("logfile", type=str, default="log.csv")
     # TODO: add mode argument and ability to do moving camera
     # TODO: add option to specify start end end time of visualization
     # TODO: add binary flag whether to show all legend items at beginning
-    # TODO: remove the line segments variable
 
     args = parser.parse_args()
 
     manim_config = {
         "quality": args.quality,
         "preview": args.preview,
+        # "format": "png" if args.save_last_frame else "mp4",
+        "save_last_frame": args.save_last_frame,
     }
 
     main(manim_config, log_file=args.logfile, rounding=args.round_to)

@@ -542,7 +542,7 @@ class HeatEqu(ThreeDScene):
                 x_length=8,
                 y_range=[-0.1*self.sidelen_c,1.5*self.sidelen_c,1],
                 y_length=8,
-                z_range=[self.z_min,self.z_max,self.dt/5],
+                z_range=[self.z_min,self.z_max,self.dt],
                 z_length=3*(self.z_max-self.z_min)/self.dt,
                 )
 
