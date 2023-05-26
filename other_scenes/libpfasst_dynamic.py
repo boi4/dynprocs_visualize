@@ -276,11 +276,13 @@ class HeatEqu(ThreeDScene):
 
         new_pv_p = []
         new_p = []
-        for i in range(self.num_space):
-            new_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(self.num_timesteps)]
-            new_pv_p += [new_pv_procs[i*num_new_timesteps + j] for j in range(num_new_timesteps)]
-            new_p += [self.processes[i*self.num_timesteps + j] for j in range(self.num_timesteps)]
-            new_p += [new_processes[i*num_new_timesteps + j] for j in range(num_new_timesteps)]
+        # for i in range(self.num_space):
+            #new_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(self.num_timesteps)]
+            #new_pv_p += [new_pv_procs[i*num_new_timesteps + j] for j in range(num_new_timesteps)]
+            #new_p += [self.processes[i*self.num_timesteps + j] for j in range(self.num_timesteps)]
+            #new_p += [new_processes[i*num_new_timesteps + j] for j in range(num_new_timesteps)]
+        new_pv_p += self.pv_procs + new_pv_procs
+        new_p += self.processes + new_processes
         self.pv_procs = new_pv_p
         self.pv_procs_group = VGroup(*new_pv_p)
         self.processes = new_p
@@ -288,9 +290,9 @@ class HeatEqu(ThreeDScene):
 
 
         # rearrange into grid
-        # animations.append(self.pv_procs_group.animate.arrange_in_grid(cols=self.num_space, flow_order="ul"))
+        # animations.append(self.pv_procs_group.animate.arrange_in_grid(cols=self.num_space, flow_order="lu"))
         animations = []
-        self.play(self.pv_procs_group.animate.arrange_in_grid(cols=self.num_space, flow_order="ul"))
+        self.play(self.pv_procs_group.animate.arrange_in_grid(cols=self.num_space, flow_order="lu"))
 
 
         # create new boundary psets
@@ -434,11 +436,15 @@ class HeatEqu(ThreeDScene):
         new_p = []
         rm_p = []
         new_nt = self.num_timesteps - num_rm_steps
-        for i in range(self.num_space):
-            new_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(new_nt)]
-            new_p += [self.processes[i*self.num_timesteps + j] for j in range(new_nt)]
-            rm_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(new_nt, self.num_timesteps)]
-            rm_p += [self.processes[i*self.num_timesteps + j] for j in range(new_nt, self.num_timesteps)]
+        # for i in range(self.num_space):
+            #new_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(new_nt)]
+            #new_p += [self.processes[i*self.num_timesteps + j] for j in range(new_nt)]
+            #rm_pv_p += [self.pv_procs[i*self.num_timesteps + j] for j in range(new_nt, self.num_timesteps)]
+            #rm_p += [self.processes[i*self.num_timesteps + j] for j in range(new_nt, self.num_timesteps)]
+        new_pv_p += self.pv_procs[:new_nt*self.num_space]
+        new_p += self.processes[:new_nt*self.num_space]
+        rm_pv_p += self.pv_procs[new_nt*self.num_space:]
+        rm_p += self.processes[new_nt*self.num_space:]
 
         self.pv_procs = new_pv_p
         self.pv_procs_group = VGroup(*new_pv_p)
@@ -599,9 +605,9 @@ class HeatEqu(ThreeDScene):
             c = self.create_process_circle(len(self.pv_procs) + i)
             circles.append(c)
 
-        procs_group = VGroup(*circles).arrange_in_grid(cols=self.num_space, flow_order='ul')
+        procs_group = VGroup(*circles).arrange_in_grid(cols=self.num_space, flow_order='lu')
         procs_group.scale(0.9 * self.pv_width / procs_group.width)
-        procs_group.arrange_in_grid(cols=self.num_space, flow_order='ul')
+        procs_group.arrange_in_grid(cols=self.num_space, flow_order='lu')
 
         # put box around them
         world_box = SurroundingRectangle(procs_group)
@@ -706,7 +712,8 @@ class HeatEqu(ThreeDScene):
     def pv_split_set_grid(self, procs):
         num_timesteps = len(procs)//self.num_space
         # create boxes around each space set
-        space_sets = [VGroup(*procs[i::num_timesteps]) for i in range(num_timesteps)]
+        #space_sets = [VGroup(*procs[i::num_timesteps]) for i in range(num_timesteps)]
+        space_sets = [VGroup(*procs[self.num_space*i:self.num_space*(i+1)]) for i in range(num_timesteps)]
         space_boxes = []
         space_arrows = []
         for i,s in enumerate(space_sets):
@@ -723,7 +730,8 @@ class HeatEqu(ThreeDScene):
 
 
         # create boxes around each time set
-        time_sets = [VGroup(*procs[i*num_timesteps:(i+1)*num_timesteps][::-1]) for i in range(self.num_space)]
+        #time_sets = [VGroup(*procs[i*num_timesteps:(i+1)*num_timesteps][::-1]) for i in range(self.num_space)]
+        time_sets = [VGroup(*procs[i::self.num_space][::-1]) for i in range(self.num_space)]
         time_boxes = []
         time_arrows = []
         for i,s in enumerate(time_sets):
@@ -773,8 +781,8 @@ class HeatEqu(ThreeDScene):
         get proc position in axis coordinates
         """
         # get time step
-        t = base_t + self.dt*(p_num%num_timesteps_height)
-        i = p_num//num_timesteps_height
+        t = base_t + self.dt*(p_num//self.num_space)
+        i = p_num%self.num_space
 
         z_pos = t
         x_pos = (0.5 + i%self.num_space_side)/self.num_space_side * self.sidelen_c
@@ -793,7 +801,8 @@ class HeatEqu(ThreeDScene):
             psets.append(prism)
 
             # cylinder = Cylinder(height=dt_p*(num_timesteps-1), radius=0.2, fill_color=split_colors[i], fill_opacity=0.2, stroke_width=0)
-            pos = self.get_proc_pos_c(i*num_timesteps_height, base_t, num_timesteps_height)
+            #pos = self.get_proc_pos_c(i*num_timesteps_height, base_t, num_timesteps_height)
+            pos = self.get_proc_pos_c(i, base_t, num_timesteps_height)
             pos = self.axes.c2p(*pos)
             # fix z position
             pos[2] += factors[-1]/2

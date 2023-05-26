@@ -310,7 +310,6 @@ if __name__ == '__main__':
     manim_config = {
         "quality": args.quality,
         "preview": args.preview,
-        # "format": "png" if args.save_last_frame else "mp4",
         "save_last_frame": args.save_last_frame,
     }
 
